@@ -5,14 +5,34 @@
 export DEBIAN_FRONTEND=noninteractive
 
 apt-get update -y
-apt-get install -y nginx
+apt-get install -y nginx curl
 
-# Page served at / (modern Ubuntu uses /var/www/html, older uses /usr/share/nginx/html)
+# Page served at / (modern Ubuntu: /var/www/html, older: /usr/share/nginx/html)
 mkdir -p /var/www/html
 echo "Holberton School for the win!" > /var/www/html/index.html
 if [ -d /usr/share/nginx/html ]; then
     echo "Holberton School for the win!" > /usr/share/nginx/html/index.html
 fi
 
+# Make sure a site listening on port 80 exists
+if ! grep -rqsE "^[[:space:]]*listen[[:space:]]+(\[::\]:)?80" /etc/nginx/sites-enabled /etc/nginx/conf.d; then
+    mkdir -p /etc/nginx/sites-available /etc/nginx/sites-enabled
+    cat > /etc/nginx/sites-available/default <<'CONF'
+server {
+    listen 80 default_server;
+    listen [::]:80 default_server;
+    root /var/www/html;
+    index index.html index.htm index.nginx-debian.html;
+    server_name _;
+    location / {
+        try_files $uri $uri/ =404;
+    }
+}
+CONF
+    ln -sf /etc/nginx/sites-available/default /etc/nginx/sites-enabled/default
+fi
+
+nginx -t
+
 # Restart nginx without systemctl
-service nginx restart || nginx
+service nginx restart || service nginx start || nginx
