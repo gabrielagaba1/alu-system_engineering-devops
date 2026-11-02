@@ -4,9 +4,25 @@
 
 export DEBIAN_FRONTEND=noninteractive
 
-# 1. Install nginx, plus curl for the self check at the end.
+# 1. Wait for any apt lock a fresh machine is still holding (cloud-init on boot),
+#    then install nginx and curl (curl is used by the self check at the end).
+if command -v fuser >/dev/null 2>&1; then
+    for _ in $(seq 1 60); do
+        if ! fuser /var/lib/dpkg/lock-frontend /var/lib/dpkg/lock \
+                   /var/cache/apt/archives/lock >/dev/null 2>&1; then
+            break
+        fi
+        sleep 2
+    done
+fi
+
 apt-get update -y
 apt-get install -y nginx curl
+
+if ! command -v nginx >/dev/null 2>&1; then
+    echo "nginx is not installed; see the apt-get output above and /var/log/apt/." >&2
+    exit 1
+fi
 
 # 2. Publish the page that has to answer at /.
 page="Holberton School for the win!"
@@ -43,14 +59,26 @@ if [ -x /etc/init.d/apache2 ] && service apache2 status >/dev/null 2>&1; then
 fi
 
 # 5. Check the configuration, then start nginx through service (the init wrapper).
-nginx -t || exit 1
-service nginx restart || service nginx start || nginx
-
-# 6. Prove the requirement: port 80 answers with that text.
-sleep 1
-if curl -fsS http://127.0.0.1/ | grep -q "Holberton School"; then
-    echo "Web server ready: http://127.0.0.1/ returns the page."
-else
-    echo "Port 80 is not serving the page (see /var/log/nginx/error.log)." >&2
+if ! nginx -t; then
+    echo "The nginx configuration test failed; see /var/log/nginx/error.log." >&2
     exit 1
 fi
+if command -v service >/dev/null 2>&1; then
+    service nginx restart || service nginx start
+elif [ -x /etc/init.d/nginx ]; then
+    /etc/init.d/nginx start
+else
+    nginx
+fi
+
+# 6. Prove the requirement: port 80 answers with that text.
+for _ in 1 2 3 4 5; do
+    if curl -fsS http://127.0.0.1/ 2>/dev/null | grep -q "Holberton School"; then
+        echo "Web server ready: http://127.0.0.1/ returns the page."
+        exit 0
+    fi
+    sleep 1
+done
+
+echo "Port 80 is not serving the page (see /var/log/nginx/error.log)." >&2
+exit 1
