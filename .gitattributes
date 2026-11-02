@@ -1,0 +1,4 @@
+# Keep every file LF in the repository, whatever editor is used on Windows.
+# CRLF line endings break the shebang of a Bash script on Ubuntu
+# ("bad interpreter: /usr/bin/env bash^M").
+* text=auto eol=lf

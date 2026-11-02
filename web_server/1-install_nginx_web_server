@@ -1,21 +1,25 @@
 #!/usr/bin/env bash
-# Configures a new Ubuntu machine: installs nginx, listens on port 80,
-# and serves a page containing "Holberton School" at the root (/).
+# Installs nginx on a fresh Ubuntu machine and serves "Holberton School" on port 80.
+# Usage, as root on the server: ./1-install_nginx_web_server
 
 export DEBIAN_FRONTEND=noninteractive
 
+# 1. Install nginx, plus curl for the self check at the end.
 apt-get update -y
 apt-get install -y nginx curl
 
-# Page served at / (modern Ubuntu: /var/www/html, older: /usr/share/nginx/html)
+# 2. Publish the page that has to answer at /.
+page="Holberton School for the win!"
 mkdir -p /var/www/html
-echo "Holberton School for the win!" > /var/www/html/index.html
+printf '%s\n' "$page" > /var/www/html/index.html
+# Some images serve from /usr/share/nginx/html instead.
 if [ -d /usr/share/nginx/html ]; then
-    echo "Holberton School for the win!" > /usr/share/nginx/html/index.html
+    printf '%s\n' "$page" > /usr/share/nginx/html/index.html
 fi
 
-# Make sure a site listening on port 80 exists
-if ! grep -rqsE "^[[:space:]]*listen[[:space:]]+(\[::\]:)?80" /etc/nginx/sites-enabled /etc/nginx/conf.d; then
+# 3. Make sure a default site listens on port 80 and points at that directory.
+if ! grep -rqsE '^[[:space:]]*listen[[:space:]]+(\[::\]:)?80([[:space:]]|;)' \
+        /etc/nginx/sites-enabled /etc/nginx/conf.d 2>/dev/null; then
     mkdir -p /etc/nginx/sites-available /etc/nginx/sites-enabled
     cat > /etc/nginx/sites-available/default <<'CONF'
 server {
@@ -24,6 +28,7 @@ server {
     root /var/www/html;
     index index.html index.htm index.nginx-debian.html;
     server_name _;
+
     location / {
         try_files $uri $uri/ =404;
     }
@@ -32,7 +37,20 @@ CONF
     ln -sf /etc/nginx/sites-available/default /etc/nginx/sites-enabled/default
 fi
 
-nginx -t
+# 4. Only one server can own port 80, so stop Apache if it got there first.
+if [ -x /etc/init.d/apache2 ] && service apache2 status >/dev/null 2>&1; then
+    service apache2 stop
+fi
 
-# Restart nginx without systemctl
+# 5. Check the configuration, then start nginx with service (never systemctl).
+nginx -t || exit 1
 service nginx restart || service nginx start || nginx
+
+# 6. Prove the requirement: port 80 answers with that text.
+sleep 1
+if curl -fsS http://127.0.0.1/ | grep -q "Holberton School"; then
+    echo "Web server ready: http://127.0.0.1/ returns the page."
+else
+    echo "Port 80 is not serving the page (see /var/log/nginx/error.log)." >&2
+    exit 1
+fi
