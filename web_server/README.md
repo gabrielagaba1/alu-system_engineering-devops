@@ -16,11 +16,13 @@ The script accepts the file path, server IP address, SSH username and private ke
 
 `1-install_nginx_web_server` configures a new Ubuntu machine from scratch:
 
-1. installs nginx (and curl, used for the final check),
+1. waits for the apt lock a freshly booted machine is still holding, then installs nginx (and curl, used for the final check),
 2. writes a page containing `Holberton School` to the web root,
 3. makes sure a default site listens on port 80 and points at that root,
 4. validates the configuration, then restarts nginx with `service` (no `systemctl`),
-5. fetches `http://127.0.0.1/` and exits non-zero unless the page comes back.
+5. fetches `http://127.0.0.1/`, retries for a few seconds, and exits non-zero unless the page comes back.
+
+If a step cannot be completed the script stops with the reason (`nginx is not installed`, `The nginx configuration test failed`, `Port 80 is not serving the page`) instead of failing silently.
 
 ```bash
 # on the server, as root
