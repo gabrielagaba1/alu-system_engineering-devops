@@ -42,7 +42,7 @@ if [ -x /etc/init.d/apache2 ] && service apache2 status >/dev/null 2>&1; then
     service apache2 stop
 fi
 
-# 5. Check the configuration, then start nginx with service (never systemctl).
+# 5. Check the configuration, then start nginx through service (the init wrapper).
 nginx -t || exit 1
 service nginx restart || service nginx start || nginx
 
